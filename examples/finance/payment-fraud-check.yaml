@@ -1,0 +1,132 @@
+name: payment-fraud-check
+category: finance
+version: 1.0.0
+description: Assess payment fraud risk with finance guardrails (amount limits and secret blocking).
+
+method: POST
+path: /v1/check-payment-fraud
+
+auth:
+  required: true
+
+telemetry:
+  enabled: false
+
+cache:
+  enabled: false
+
+guardrails:
+  - module: max-request-size
+    hook: preInput
+    config:
+      maxBytes: 8192
+  - module: payment-amount-limit
+    runtime: deno
+    hook: postInput
+    path: ../guardrails/payment-amount-limit.ts
+    timeoutMs: 1500
+    config:
+      maxAmount: 25000
+  - module: regex-block
+    hook: preLlm
+    config:
+      target: prompt
+      patterns:
+        - "(?i)(api[_-]?key|secret|password)\\s*[:=]"
+        - "(?i)ignore (all )?(previous|above) instructions"
+  - module: output-secret-scan
+    hook: postLlm
+    config: {}
+
+inputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - amount
+    - currency
+    - merchantId
+  properties:
+    amount:
+      type: number
+      minimum: 0.01
+    currency:
+      type: string
+      minLength: 3
+      maxLength: 3
+    merchantId:
+      type: string
+      minLength: 1
+    cardLast4:
+      type: string
+      pattern: "^[0-9]{4}$"
+
+systemPrompt: |
+  You are a payment fraud analyst.
+  Assess risk for the payment described in the input.
+  Return only valid JSON matching the output schema.
+
+userPromptTemplate: |
+  Payment:
+  Amount: {{amount}} {{currency}}
+  Merchant: {{merchantId}}
+  Card last4: {{cardLast4}}
+
+outputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - riskLevel
+    - score
+    - reasons
+    - recommendedAction
+  properties:
+    riskLevel:
+      type: string
+      enum:
+        - low
+        - medium
+        - high
+    score:
+      type: number
+      minimum: 0
+      maximum: 1
+    reasons:
+      type: array
+      items:
+        type: string
+    recommendedAction:
+      type: string
+
+model:
+  provider: openai
+  model: gpt-4.1-mini
+  temperature: 0
+  maxTokens: 800
+
+policies:
+  validateInput: true
+  validateOutput: true
+  retryOnInvalidJson: true
+  retryOnInvalidSchema: true
+  maxRetries: 2
+  stripMarkdownCodeFences: true
+  logRequests: true
+  logResponses: false
+  redactInputs: true
+  redactOutputs: true
+
+errors:
+  guardrail:
+    message: Payment request failed finance guardrails.
+
+examples:
+  request:
+    amount: 150.0
+    currency: USD
+    merchantId: merch_abc123
+    cardLast4: "4242"
+  response:
+    riskLevel: low
+    score: 0.12
+    reasons: []
+    recommendedAction: approve

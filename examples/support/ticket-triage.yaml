@@ -1,0 +1,158 @@
+name: support-ticket-triage
+category: support
+version: 1.0.0
+description: Classify and prioritize a customer support ticket.
+
+method: POST
+path: /v1/triage-support-ticket
+
+auth:
+  required: true
+
+health:
+  message: Support ticket triage API is operational.
+  status: 200
+
+inputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - subject
+    - body
+  properties:
+    subject:
+      type: string
+    body:
+      type: string
+    customerTier:
+      type: string
+      enum:
+        - free
+        - standard
+        - premium
+        - enterprise
+
+systemPrompt: |
+  You are an expert customer support operations analyst.
+  Classify the support ticket, assign priority, estimate urgency, and recommend the next action.
+  Return only valid JSON matching the output schema.
+
+userPromptTemplate: |
+  Subject:
+  {{subject}}
+
+  Body:
+  {{body}}
+
+  Customer Tier:
+  {{customerTier}}
+
+outputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - category
+    - priority
+    - urgency
+    - sentiment
+    - summary
+    - recommendedAction
+  properties:
+    category:
+      type: string
+      enum:
+        - billing
+        - technical
+        - account
+        - feature_request
+        - complaint
+        - other
+    priority:
+      type: string
+      enum:
+        - low
+        - medium
+        - high
+        - critical
+    urgency:
+      type: string
+      enum:
+        - low
+        - medium
+        - high
+        - immediate
+    sentiment:
+      type: string
+      enum:
+        - negative
+        - neutral
+        - positive
+    summary:
+      type: string
+    recommendedAction:
+      type: string
+
+model:
+  provider: openai
+  model: gpt-4.1-mini
+  temperature: 0.1
+  maxTokens: 1000
+
+hooks:
+  postInput:
+    runtime: deno
+    timeoutMs: 1000
+    permissions: []
+    script: |
+      function transform(input, host) {
+        return Object.assign({}, input, { triagePipeline: "v1" });
+      }
+
+guardrails:
+  - module: max-request-size
+    hook: preInput
+    config:
+      maxBytes: 32768
+  - module: support-priority-cap
+    runtime: deno
+    hook: postInput
+    path: ../guardrails/support-priority-cap.ts
+    timeoutMs: 1500
+    config: {}
+  - module: regex-block
+    hook: preLlm
+    config:
+      target: prompt
+      patterns:
+        - "(?i)ignore (all )?(previous|above) instructions"
+  - module: output-secret-scan
+    hook: postLlm
+    config: {}
+
+cache:
+  enabled: false
+
+policies:
+  validateInput: true
+  validateOutput: true
+  retryOnInvalidJson: true
+  retryOnInvalidSchema: true
+  maxRetries: 2
+  stripMarkdownCodeFences: true
+  logRequests: true
+  logResponses: false
+  redactInputs: true
+  redactOutputs: false
+
+examples:
+  request:
+    subject: Cannot access my account
+    body: I reset my password twice and still cannot log in.
+    customerTier: premium
+  response:
+    category: account
+    priority: high
+    urgency: high
+    sentiment: negative
+    summary: Premium customer locked out after password reset.
+    recommendedAction: Escalate to account support and verify identity.

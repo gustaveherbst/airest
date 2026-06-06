@@ -1,0 +1,102 @@
+name: sentiment-analyzer
+category: analytics
+version: 1.0.0
+description: Analyze sentiment and emotional tone of text.
+
+method: POST
+path: /v1/analyze-sentiment
+
+auth:
+  required: true
+
+inputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - text
+  properties:
+    text:
+      type: string
+      minLength: 1
+
+systemPrompt: |
+  You are an expert language and sentiment analyst.
+  Analyze the sentiment, emotional tone, and intent of the provided text.
+  Return only valid JSON matching the output schema.
+
+userPromptTemplate: |
+  Text:
+  {{text}}
+
+outputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - sentiment
+    - confidence
+    - emotions
+    - intent
+    - summary
+  properties:
+    sentiment:
+      type: string
+      enum:
+        - negative
+        - neutral
+        - positive
+        - mixed
+    confidence:
+      type: number
+      minimum: 0
+      maximum: 1
+    emotions:
+      type: array
+      items:
+        type: string
+    intent:
+      type: string
+    summary:
+      type: string
+
+model:
+  provider: openai
+  model: gpt-4.1-mini
+  temperature: 0
+  maxTokens: 800
+
+guardrails:
+  - module: max-request-size
+    hook: preInput
+    config:
+      maxBytes: 65536
+  - module: regex-block
+    hook: postInput
+    config:
+      target: input
+      patterns:
+        - "(?i)password\\s*[:=]"
+
+policies:
+  validateInput: true
+  validateOutput: true
+  retryOnInvalidJson: true
+  retryOnInvalidSchema: true
+  maxRetries: 2
+  stripMarkdownCodeFences: true
+  logRequests: true
+  logResponses: false
+
+errors:
+  inputValidation:
+    message: Sentiment request must include valid text input.
+
+examples:
+  request:
+    text: I love this product!
+  response:
+    sentiment: positive
+    confidence: 0.95
+    emotions:
+      - joy
+    intent: praise
+    summary: Strong positive sentiment.

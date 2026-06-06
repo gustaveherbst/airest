@@ -1,0 +1,128 @@
+name: clinical-note-summary
+category: healthcare
+version: 1.0.0
+description: Summarize a de-identified clinical note for care coordination (healthcare guardrail pack).
+
+method: POST
+path: /v1/summarize-clinical-note
+
+auth:
+  required: true
+
+telemetry:
+  enabled: false
+
+cache:
+  enabled: false
+
+guardrails:
+  - module: max-request-size
+    hook: preInput
+    config:
+      maxBytes: 32768
+  - module: pii-redact
+    hook: postInput
+    config:
+      fields:
+        - patientName
+        - mrn
+        - dateOfBirth
+      mode: mask
+  - module: clinical-topic-allowlist
+    runtime: deno
+    hook: postInput
+    path: ../guardrails/clinical-topic-allowlist.ts
+    timeoutMs: 2000
+    config:
+      blockedTopics:
+        - controlled substance
+        - suicide
+  - module: regex-block
+    hook: preLlm
+    config:
+      target: prompt
+      patterns:
+        - "(?i)ignore (all )?(previous|above) instructions"
+  - module: output-secret-scan
+    hook: postLlm
+    config: {}
+
+inputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - clinicalNote
+  properties:
+    clinicalNote:
+      type: string
+      minLength: 20
+    patientName:
+      type: string
+    mrn:
+      type: string
+    dateOfBirth:
+      type: string
+
+systemPrompt: |
+  You are a clinical documentation specialist.
+  Summarize the clinical note for handoff between care teams.
+  Do not invent diagnoses or medications not present in the note.
+  Return only valid JSON matching the output schema.
+
+userPromptTemplate: |
+  Clinical note:
+  {{clinicalNote}}
+
+outputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - summary
+    - keyFindings
+    - followUp
+  properties:
+    summary:
+      type: string
+    keyFindings:
+      type: array
+      items:
+        type: string
+    followUp:
+      type: array
+      items:
+        type: string
+
+model:
+  provider: openai
+  model: gpt-4.1-mini
+  temperature: 0.1
+  maxTokens: 1200
+
+policies:
+  validateInput: true
+  validateOutput: true
+  retryOnInvalidJson: true
+  retryOnInvalidSchema: true
+  maxRetries: 2
+  stripMarkdownCodeFences: true
+  logRequests: true
+  logResponses: false
+  redactInputs: true
+  redactOutputs: true
+
+errors:
+  guardrail:
+    message: Clinical note failed healthcare safety guardrails.
+
+examples:
+  request:
+    clinicalNote: Patient presents with improved mobility after physical therapy. Vitals stable. Continue current plan.
+    patientName: Jane Doe
+    mrn: "12345"
+    dateOfBirth: "1980-01-01"
+  response:
+    summary: Stable progress after therapy.
+    keyFindings:
+      - Improved mobility
+    followUp:
+      - Continue physical therapy

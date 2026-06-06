@@ -1,0 +1,167 @@
+name: contract-risk-analyzer
+category: legal
+version: 1.0.0
+description: Analyze contract text and return structured risk findings.
+
+method: POST
+path: /v1/analyze-contract-risk
+
+auth:
+  required: true
+
+cache:
+  enabled: false
+
+health:
+  message: Contract risk analyzer is loaded and ready.
+  status: 200
+
+inputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - contractText
+    - jurisdiction
+  properties:
+    contractText:
+      type: string
+      minLength: 50
+    jurisdiction:
+      type: string
+      minLength: 2
+    riskTolerance:
+      type: string
+      enum:
+        - low
+        - medium
+        - high
+
+systemPrompt: |
+  You are a senior legal contract analyst.
+  Analyze the provided contract text for legal, financial, operational, and compliance risks.
+  Be precise, structured, and conservative in your risk assessment.
+  Return only valid JSON matching the required output schema.
+  Do not include markdown.
+  Do not include explanatory text outside the JSON object.
+
+userPromptTemplate: |
+  Analyze the following contract.
+
+  Contract Text:
+  {{contractText}}
+
+  Jurisdiction:
+  {{jurisdiction}}
+
+  Risk Tolerance:
+  {{riskTolerance}}
+
+outputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - summary
+    - overallRisk
+    - risks
+    - missingClauses
+    - recommendedActions
+  properties:
+    summary:
+      type: string
+    overallRisk:
+      type: string
+      enum:
+        - low
+        - medium
+        - high
+    risks:
+      type: array
+      items:
+        type: object
+        additionalProperties: false
+        required:
+          - category
+          - severity
+          - description
+          - recommendation
+        properties:
+          category:
+            type: string
+          severity:
+            type: string
+            enum:
+              - low
+              - medium
+              - high
+          description:
+            type: string
+          recommendation:
+            type: string
+    missingClauses:
+      type: array
+      items:
+        type: string
+    recommendedActions:
+      type: array
+      items:
+        type: string
+
+model:
+  provider: openai
+  model: gpt-4.1-mini
+  temperature: 0.2
+  maxTokens: 2000
+
+guardrails:
+  - module: max-request-size
+    hook: preInput
+    config:
+      maxBytes: 262144
+  - module: pii-redact
+    hook: postInput
+    config:
+      fields:
+        - contractText
+      mode: mask
+  - module: regex-block
+    hook: preLlm
+    config:
+      target: prompt
+      patterns:
+        - "(?i)api[_-]?key"
+        - "(?i)ignore (all )?(previous|above) instructions"
+  - module: output-secret-scan
+    hook: postLlm
+    config: {}
+
+policies:
+  validateInput: true
+  validateOutput: true
+  retryOnInvalidJson: true
+  retryOnInvalidSchema: true
+  maxRetries: 2
+  stripMarkdownCodeFences: true
+  logRequests: true
+  logResponses: false
+  redactInputs: true
+  redactOutputs: true
+
+errors:
+  inputValidation:
+    message: Contract request is missing required fields or contains invalid data.
+  authentication:
+    message: A valid x-api-key header is required for contract analysis.
+  modelOutputValidation:
+    message: Contract analysis could not produce a valid structured result.
+
+examples:
+  request:
+    contractText: This agreement is entered into between Company A and Company B and includes payment terms, termination clauses, and confidentiality obligations sufficient for review.
+    jurisdiction: Oklahoma
+    riskTolerance: medium
+  response:
+    summary: The contract contains several moderate business and legal risks.
+    overallRisk: medium
+    risks: []
+    missingClauses: []
+    recommendedActions: []

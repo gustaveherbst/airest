@@ -1,0 +1,58 @@
+name: oauth2-protected
+category: auth
+version: 1.0.0
+description: Example endpoint using OAuth2 token introspection (RFC 7662).
+
+method: POST
+path: /v1/auth/oauth2-echo
+
+auth:
+  required: true
+  type: oauth2Introspect
+  oauth2:
+    url: https://auth.example.com/oauth/introspect
+    clientId: ${OAUTH2_CLIENT_ID}
+    clientSecret: ${OAUTH2_CLIENT_SECRET}
+
+guardrails:
+  - module: max-request-size
+    hook: preInput
+    config:
+      maxBytes: 16384
+  - module: output-secret-scan
+    hook: postLlm
+    config: {}
+
+inputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - prompt
+  properties:
+    prompt:
+      type: string
+
+systemPrompt: |
+  Summarize the prompt in one sentence. Return JSON only.
+
+userPromptTemplate: |
+  {{prompt}}
+
+outputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - summary
+  properties:
+    summary:
+      type: string
+
+model:
+  provider: openai
+  model: gpt-4.1-mini
+  temperature: 0
+  maxTokens: 200
+
+policies:
+  validateInput: true
+  validateOutput: true

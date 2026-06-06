@@ -1,0 +1,103 @@
+name: support-reply-suggester
+category: support
+version: 1.0.0
+description: Suggest a professional support reply for a customer message.
+
+method: POST
+path: /v1/suggest-support-reply
+
+auth:
+  required: true
+
+cache:
+  enabled: false
+
+guardrails:
+  - module: max-request-size
+    hook: preInput
+    config:
+      maxBytes: 65536
+  - module: pii-redact
+    hook: postInput
+    config:
+      fields: [customerMessage]
+      mode: mask
+  - module: regex-block
+    hook: preLlm
+    config:
+      target: prompt
+      patterns:
+        - "(?i)ignore (all )?(previous|above) instructions"
+  - module: output-secret-scan
+    hook: postLlm
+    config: {}
+
+inputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - customerMessage
+  properties:
+    customerMessage:
+      type: string
+      minLength: 1
+    tone:
+      type: string
+      enum:
+        - empathetic
+        - neutral
+        - formal
+
+systemPrompt: |
+  You are an expert customer support writer.
+  Draft a concise, helpful reply to the customer message.
+  Return only valid JSON matching the output schema.
+
+userPromptTemplate: |
+  Customer Message:
+  {{customerMessage}}
+
+  Preferred Tone:
+  {{tone}}
+
+outputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - reply
+    - tone
+    - summary
+  properties:
+    reply:
+      type: string
+    tone:
+      type: string
+    summary:
+      type: string
+
+model:
+  provider: openai
+  model: gpt-4.1-mini
+  temperature: 0.3
+  maxTokens: 800
+
+policies:
+  validateInput: true
+  validateOutput: true
+  retryOnInvalidJson: true
+  retryOnInvalidSchema: true
+  maxRetries: 2
+  stripMarkdownCodeFences: true
+  logRequests: true
+  logResponses: false
+  redactInputs: true
+  redactOutputs: true
+
+examples:
+  request:
+    customerMessage: My invoice looks wrong and I was charged twice this month.
+    tone: empathetic
+  response:
+    reply: Thank you for reaching out. I am sorry for the billing confusion and will review the duplicate charge right away.
+    tone: empathetic
+    summary: Acknowledge billing issue and promise review.

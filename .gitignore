@@ -1,0 +1,24 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+
+# Local environment (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# Generated outputs
+openapi.json
+/dist/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# JS tooling (if added later)
+node_modules/

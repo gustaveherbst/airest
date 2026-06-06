@@ -1,0 +1,119 @@
+name: headline-generator
+category: content
+version: 1.0.0
+description: Generate marketing headline options from a product brief.
+
+method: POST
+path: /v1/generate-headline
+
+auth:
+  required: true
+
+guardrails:
+  - module: max-request-size
+    hook: preInput
+    config:
+      maxBytes: 65536
+  - module: regex-block
+    hook: preLlm
+    config:
+      target: prompt
+      patterns:
+        - "(?i)ignore (all )?(previous|above) instructions"
+  - module: output-secret-scan
+    hook: postLlm
+    config: {}
+
+health:
+  message: Headline generator is loaded and ready.
+  status: 200
+
+inputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - product
+    - audience
+  properties:
+    product:
+      type: string
+      minLength: 1
+    audience:
+      type: string
+      minLength: 1
+    tone:
+      type: string
+      enum:
+        - professional
+        - playful
+        - urgent
+        - inspirational
+    count:
+      type: integer
+      minimum: 1
+      maximum: 10
+
+systemPrompt: |
+  You are a senior marketing copywriter.
+  Generate compelling headline options tailored to the product and audience.
+  Return only valid JSON matching the output schema.
+
+userPromptTemplate: |
+  Product:
+  {{product}}
+
+  Audience:
+  {{audience}}
+
+  Tone:
+  {{tone}}
+
+  Headline Count:
+  {{count}}
+
+outputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - headlines
+    - recommendedHeadline
+    - rationale
+  properties:
+    headlines:
+      type: array
+      items:
+        type: string
+    recommendedHeadline:
+      type: string
+    rationale:
+      type: string
+
+model:
+  provider: openai
+  model: gpt-4.1-mini
+  temperature: 0.6
+  maxTokens: 800
+
+policies:
+  validateInput: true
+  validateOutput: true
+  retryOnInvalidJson: true
+  retryOnInvalidSchema: true
+  maxRetries: 2
+  stripMarkdownCodeFences: true
+  logRequests: true
+  logResponses: false
+
+examples:
+  request:
+    product: aiREST turns YAML into production AI REST APIs
+    audience: backend engineers
+    tone: professional
+    count: 3
+  response:
+    headlines:
+      - Ship AI APIs from YAML in minutes
+      - Declarative AI endpoints for Rust teams
+      - From schema to REST without boilerplate
+    recommendedHeadline: Ship AI APIs from YAML in minutes
+    rationale: Clear value proposition for backend engineers.

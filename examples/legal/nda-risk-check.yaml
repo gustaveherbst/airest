@@ -1,0 +1,154 @@
+name: nda-risk-check
+category: legal
+version: 1.0.0
+description: Screen an NDA for common confidentiality and scope risks.
+
+method: POST
+path: /v1/check-nda-risk
+
+auth:
+  required: true
+
+cache:
+  enabled: false
+
+health:
+  message: NDA risk check API is loaded and ready.
+  status: 200
+
+inputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - ndaText
+    - partyRole
+  properties:
+    ndaText:
+      type: string
+      minLength: 50
+    partyRole:
+      type: string
+      enum:
+        - disclosing
+        - receiving
+        - mutual
+    jurisdiction:
+      type: string
+      minLength: 2
+
+systemPrompt: |
+  You are a legal analyst specializing in non-disclosure agreements.
+  Identify confidentiality scope, term, carve-outs, and enforcement risks.
+  Return only valid JSON matching the output schema.
+
+userPromptTemplate: |
+  NDA Text:
+  {{ndaText}}
+
+  Party Role:
+  {{partyRole}}
+
+  Jurisdiction:
+  {{jurisdiction}}
+
+outputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - summary
+    - overallRisk
+    - issues
+    - missingTerms
+    - recommendedChanges
+  properties:
+    summary:
+      type: string
+    overallRisk:
+      type: string
+      enum:
+        - low
+        - medium
+        - high
+    issues:
+      type: array
+      items:
+        type: object
+        additionalProperties: false
+        required:
+          - category
+          - severity
+          - description
+        properties:
+          category:
+            type: string
+          severity:
+            type: string
+            enum:
+              - low
+              - medium
+              - high
+          description:
+            type: string
+    missingTerms:
+      type: array
+      items:
+        type: string
+    recommendedChanges:
+      type: array
+      items:
+        type: string
+
+model:
+  provider: openai
+  model: gpt-4.1-mini
+  temperature: 0.2
+  maxTokens: 1500
+
+guardrails:
+  - module: max-request-size
+    hook: preInput
+    config:
+      maxBytes: 131072
+  - module: regex-block
+    hook: postInput
+    config:
+      target: input
+      patterns:
+        - "(?i)ssn\\s*[:=]"
+  - module: regex-block
+    hook: preLlm
+    config:
+      target: prompt
+      patterns:
+        - "(?i)ignore (all )?(previous|above) instructions"
+  - module: output-secret-scan
+    hook: postLlm
+    config: {}
+
+policies:
+  validateInput: true
+  validateOutput: true
+  retryOnInvalidJson: true
+  retryOnInvalidSchema: true
+  maxRetries: 2
+  stripMarkdownCodeFences: true
+  logRequests: true
+  logResponses: false
+  redactInputs: true
+  redactOutputs: true
+
+errors:
+  inputValidation:
+    message: NDA check request must include valid ndaText and partyRole fields.
+
+examples:
+  request:
+    ndaText: This mutual non-disclosure agreement governs confidential information shared between the parties for evaluating a potential business relationship and includes term, exclusions, and return obligations.
+    partyRole: mutual
+    jurisdiction: Delaware
+  response:
+    summary: The NDA appears generally balanced with moderate scope risks.
+    overallRisk: medium
+    issues: []
+    missingTerms: []
+    recommendedChanges: []

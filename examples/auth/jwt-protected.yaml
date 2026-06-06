@@ -1,0 +1,69 @@
+name: jwt-protected-echo
+category: auth
+version: 1.0.0
+description: Example endpoint requiring JWT bearer tokens (RS256 + JWKS).
+
+method: POST
+path: /v1/auth/jwt-echo
+
+auth:
+  required: true
+  type: jwt
+  jwt:
+    issuer: https://auth.example.com
+    audience: airest-api
+    jwksUrl: https://auth.example.com/.well-known/jwks.json
+    claims:
+      required:
+        - sub
+      scope: read
+
+guardrails:
+  - module: max-request-size
+    hook: preInput
+    config:
+      maxBytes: 16384
+  - module: output-secret-scan
+    hook: postLlm
+    config: {}
+
+inputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - message
+  properties:
+    message:
+      type: string
+      minLength: 1
+
+systemPrompt: |
+  Echo the user message in JSON matching the output schema.
+
+userPromptTemplate: |
+  Message: {{message}}
+
+outputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - echo
+  properties:
+    echo:
+      type: string
+
+model:
+  provider: openai
+  model: gpt-4.1-mini
+  temperature: 0
+  maxTokens: 200
+
+policies:
+  validateInput: true
+  validateOutput: true
+
+examples:
+  request:
+    message: hello from JWT caller
+  response:
+    echo: hello from JWT caller

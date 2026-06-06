@@ -1,0 +1,114 @@
+name: kb-ticket-search-hf
+category: mcp
+version: 1.0.0
+description: Search Hugging Face documentation via the public HF MCP server at https://hf.co/mcp (remote HTTP, no local mock).
+
+method: POST
+path: /v1/search-support-kb
+
+auth:
+  required: true
+
+telemetry:
+  enabled: false
+
+cache:
+  enabled: false
+
+guardrails:
+  - module: max-request-size
+    hook: preInput
+    config:
+      maxBytes: 65536
+  - module: regex-block
+    hook: preLlm
+    config:
+      target: prompt
+      patterns:
+        - "(?i)ignore (all )?(previous|above) instructions"
+  - module: output-secret-scan
+    hook: postLlm
+    config: {}
+
+tools:
+  mcpServers:
+    - name: huggingface
+      transport: http
+      url: https://hf.co/mcp
+      headers:
+        Authorization: "Bearer ${HF_TOKEN}"
+  allow:
+    - huggingface/hf_doc_search
+  toolTimeoutMs: 10000
+
+inputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - query
+  properties:
+    query:
+      type: string
+      minLength: 1
+
+systemPrompt: |
+  You are a documentation search assistant.
+  Use the hf_doc_search MCP tool to find relevant Hugging Face documentation for the user's question.
+  Summarize the most useful doc hits in plain language.
+  Return only valid JSON matching the output schema.
+
+userPromptTemplate: |
+  Find documentation for:
+  {{query}}
+
+outputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - summary
+    - matches
+  properties:
+    summary:
+      type: string
+    matches:
+      type: array
+      items:
+        type: object
+        additionalProperties: false
+        required:
+          - title
+          - url
+        properties:
+          title:
+            type: string
+          url:
+            type: string
+
+model:
+  provider: openai
+  model: gpt-4.1-mini
+  temperature: 0
+  maxTokens: 1200
+
+policies:
+  validateInput: true
+  validateOutput: true
+  maxToolRounds: 4
+  toolTimeoutMs: 10000
+  retryOnInvalidJson: true
+  retryOnInvalidSchema: true
+  maxRetries: 1
+  stripMarkdownCodeFences: true
+  logRequests: true
+  logResponses: false
+  redactInputs: true
+  redactOutputs: true
+
+examples:
+  request:
+    query: how to reset a user password in an application
+  response:
+    summary: Found Hugging Face documentation related to authentication flows.
+    matches:
+      - title: Authentication guide
+        url: https://huggingface.co/docs/example

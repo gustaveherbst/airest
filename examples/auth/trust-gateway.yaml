@@ -1,0 +1,57 @@
+name: trust-gateway-echo
+category: auth
+version: 1.0.0
+description: Example endpoint trusting Kong/Envoy identity headers (no token verification in aiREST).
+
+method: POST
+path: /v1/auth/gateway-echo
+
+auth:
+  required: true
+  type: trustGateway
+  trustGateway:
+    userIdHeader: x-user-id
+    tenantIdHeader: x-tenant-id
+
+guardrails:
+  - module: max-request-size
+    hook: preInput
+    config:
+      maxBytes: 16384
+  - module: output-secret-scan
+    hook: postLlm
+    config: {}
+
+inputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - text
+  properties:
+    text:
+      type: string
+
+systemPrompt: |
+  Return the text field unchanged in JSON.
+
+userPromptTemplate: |
+  {{text}}
+
+outputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - text
+  properties:
+    text:
+      type: string
+
+model:
+  provider: openai
+  model: gpt-4.1-mini
+  temperature: 0
+  maxTokens: 100
+
+policies:
+  validateInput: true
+  validateOutput: true

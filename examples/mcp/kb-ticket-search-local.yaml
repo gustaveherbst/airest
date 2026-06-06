@@ -1,0 +1,122 @@
+name: kb-ticket-search-local
+category: mcp
+version: 1.0.0
+description: KB search via in-process Deno local tool (no MCP server).
+
+method: POST
+path: /v1/search-support-kb-local
+
+auth:
+  required: true
+
+cache:
+  enabled: false
+
+guardrails:
+  - module: max-request-size
+    hook: preInput
+    config:
+      maxBytes: 65536
+  - module: regex-block
+    hook: preLlm
+    config:
+      target: prompt
+      patterns:
+        - "(?i)ignore (all )?(previous|above) instructions"
+  - module: output-secret-scan
+    hook: postLlm
+    config: {}
+
+tools:
+  local:
+    - name: search_kb
+      description: Search the support knowledge base for similar resolved tickets.
+      toolPrompt: |
+        Call when the user query needs historical ticket context before summarizing matches.
+        Pass the user's search terms in the query argument.
+      inputSchema:
+        type: object
+        additionalProperties: false
+        required:
+          - query
+        properties:
+          query:
+            type: string
+            minLength: 1
+      runtime: deno
+      path: ../tools/search-kb-local.ts
+      permissions: []
+      timeoutMs: 3000
+  allow:
+    - local/search_kb
+
+inputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - query
+  properties:
+    query:
+      type: string
+      minLength: 1
+
+systemPrompt: |
+  You are a support knowledge assistant.
+  Use the search_kb tool when you need ticket context from the knowledge base.
+  Return only valid JSON matching the output schema.
+
+userPromptTemplate: |
+  Search the knowledge base for:
+  {{query}}
+
+outputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - summary
+    - matches
+  properties:
+    summary:
+      type: string
+    matches:
+      type: array
+      items:
+        type: object
+        additionalProperties: false
+        required:
+          - id
+          - subject
+        properties:
+          id:
+            type: string
+          subject:
+            type: string
+
+model:
+  provider: openai
+  model: gpt-4.1-mini
+  temperature: 0
+  maxTokens: 1200
+
+policies:
+  validateInput: true
+  validateOutput: true
+  maxToolRounds: 4
+  toolTimeoutMs: 5000
+  maxRetries: 1
+  retryOnInvalidJson: true
+  retryOnInvalidSchema: true
+  stripMarkdownCodeFences: true
+  logRequests: true
+  logResponses: false
+  redactInputs: true
+  redactOutputs: true
+
+examples:
+  request:
+    query: customer cannot reset password
+  response:
+    summary: Found similar password reset tickets.
+    matches:
+      - id: T-1001
+        subject: Password reset loop

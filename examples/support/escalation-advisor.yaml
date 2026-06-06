@@ -1,0 +1,147 @@
+name: support-escalation-advisor
+category: support
+version: 1.0.0
+description: Recommend whether and how to escalate a support case.
+
+method: POST
+path: /v1/advise-support-escalation
+
+auth:
+  required: true
+
+cache:
+  enabled: false
+
+guardrails:
+  - module: max-request-size
+    hook: preInput
+    config:
+      maxBytes: 65536
+  - module: regex-block
+    hook: preLlm
+    config:
+      target: prompt
+      patterns:
+        - "(?i)ignore (all )?(previous|above) instructions"
+  - module: output-secret-scan
+    hook: postLlm
+    config: {}
+
+health:
+  message: Support escalation advisor is operational.
+  status: 200
+
+inputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - subject
+    - body
+    - priority
+  properties:
+    subject:
+      type: string
+      minLength: 1
+    body:
+      type: string
+      minLength: 1
+    priority:
+      type: string
+      enum:
+        - low
+        - medium
+        - high
+        - critical
+    customerTier:
+      type: string
+      enum:
+        - free
+        - standard
+        - premium
+        - enterprise
+    previousAttempts:
+      type: integer
+      minimum: 0
+
+systemPrompt: |
+  You are a senior customer support operations manager.
+  Decide whether a ticket should be escalated, to which team, and why.
+  Return only valid JSON matching the output schema.
+
+userPromptTemplate: |
+  Subject:
+  {{subject}}
+
+  Body:
+  {{body}}
+
+  Priority:
+  {{priority}}
+
+  Customer Tier:
+  {{customerTier}}
+
+  Previous Support Attempts:
+  {{previousAttempts}}
+
+outputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - shouldEscalate
+    - escalationLevel
+    - targetTeam
+    - rationale
+    - recommendedActions
+  properties:
+    shouldEscalate:
+      type: boolean
+    escalationLevel:
+      type: string
+      enum:
+        - none
+        - supervisor
+        - specialist
+        - executive
+    targetTeam:
+      type: string
+    rationale:
+      type: string
+    recommendedActions:
+      type: array
+      items:
+        type: string
+
+model:
+  provider: openai
+  model: gpt-4.1-mini
+  temperature: 0.1
+  maxTokens: 900
+
+policies:
+  validateInput: true
+  validateOutput: true
+  retryOnInvalidJson: true
+  retryOnInvalidSchema: true
+  maxRetries: 2
+  stripMarkdownCodeFences: true
+  logRequests: true
+  logResponses: false
+  redactInputs: true
+  redactOutputs: false
+
+examples:
+  request:
+    subject: Production outage affecting billing
+    body: Our checkout has been failing for two hours and enterprise customers cannot pay.
+    priority: critical
+    customerTier: enterprise
+    previousAttempts: 1
+  response:
+    shouldEscalate: true
+    escalationLevel: executive
+    targetTeam: incident-response
+    rationale: Critical production outage affecting enterprise billing.
+    recommendedActions:
+      - Open incident bridge
+      - Notify account managers

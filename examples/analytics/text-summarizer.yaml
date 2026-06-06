@@ -1,0 +1,107 @@
+name: text-summarizer
+category: analytics
+version: 1.0.0
+description: Summarize long text into concise bullet points and a short abstract.
+
+method: POST
+path: /v1/summarize-text
+
+auth:
+  required: true
+
+guardrails:
+  - module: max-request-size
+    hook: preInput
+    config:
+      maxBytes: 131072
+  - module: regex-block
+    hook: preLlm
+    config:
+      target: prompt
+      patterns:
+        - "(?i)ignore (all )?(previous|above) instructions"
+  - module: output-secret-scan
+    hook: postLlm
+    config: {}
+
+inputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - text
+  properties:
+    text:
+      type: string
+      minLength: 20
+    maxBullets:
+      type: integer
+      minimum: 1
+      maximum: 10
+    audience:
+      type: string
+      enum:
+        - general
+        - executive
+        - technical
+
+systemPrompt: |
+  You are an expert editor and analyst.
+  Produce a concise summary with bullet points and a short abstract.
+  Return only valid JSON matching the output schema.
+
+userPromptTemplate: |
+  Text:
+  {{text}}
+
+  Maximum Bullets:
+  {{maxBullets}}
+
+  Audience:
+  {{audience}}
+
+outputSchema:
+  type: object
+  additionalProperties: false
+  required:
+    - abstract
+    - bullets
+    - wordCountEstimate
+  properties:
+    abstract:
+      type: string
+    bullets:
+      type: array
+      items:
+        type: string
+    wordCountEstimate:
+      type: integer
+      minimum: 0
+
+model:
+  provider: openai
+  model: gpt-4.1-mini
+  temperature: 0.2
+  maxTokens: 1000
+
+policies:
+  validateInput: true
+  validateOutput: true
+  retryOnInvalidJson: true
+  retryOnInvalidSchema: true
+  maxRetries: 2
+  stripMarkdownCodeFences: true
+  logRequests: true
+  logResponses: false
+
+examples:
+  request:
+    text: Quarterly revenue grew 12 percent driven by enterprise subscriptions while support costs increased due to onboarding volume and two major outages in March.
+    maxBullets: 3
+    audience: executive
+  response:
+    abstract: Revenue grew while support costs rose after onboarding growth and outages.
+    bullets:
+      - Revenue increased 12 percent
+      - Enterprise subscriptions drove growth
+      - Support costs rose after outages
+    wordCountEstimate: 24

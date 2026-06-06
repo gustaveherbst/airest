@@ -1,0 +1,119 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(airest_requests_total[5m])) by (airest_endpoint)",
+          "legendFormat": "{{airest_endpoint}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Request rate by endpoint",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(airest_request_duration_ms_bucket[5m])) by (le, airest_endpoint))",
+          "legendFormat": "p95 {{airest_endpoint}}",
+          "refId": "A"
+        }
+      ],
+      "title": "P95 request latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 },
+      "id": 3,
+      "targets": [
+        {
+          "expr": "sum(rate(airest_cache_hit[5m])) by (airest_endpoint) / (sum(rate(airest_cache_hit[5m])) by (airest_endpoint) + sum(rate(airest_cache_miss[5m])) by (airest_endpoint))",
+          "legendFormat": "{{airest_endpoint}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Cache hit ratio",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 8 },
+      "id": 4,
+      "targets": [
+        {
+          "expr": "sum(rate(airest_llm_retries[5m])) by (airest_endpoint, airest_retry_reason)",
+          "legendFormat": "{{airest_endpoint}} {{airest_retry_reason}}",
+          "refId": "A"
+        }
+      ],
+      "title": "LLM retries",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 8 },
+      "id": 5,
+      "targets": [
+        {
+          "expr": "sum(rate(airest_validation_failures[5m])) by (airest_endpoint, airest_validation_stage)",
+          "legendFormat": "{{airest_validation_stage}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Validation failures",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "id": 6,
+      "targets": [
+        {
+          "expr": "sum(airest_requests_in_flight) by (airest_endpoint)",
+          "legendFormat": "{{airest_endpoint}}",
+          "refId": "A"
+        }
+      ],
+      "title": "In-flight requests",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "id": 7,
+      "targets": [
+        {
+          "expr": "sum(rate(airest_guardrail_blocks[5m])) by (airest_guardrail_module)",
+          "legendFormat": "{{airest_guardrail_module}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Guardrail blocks",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["airest", "otel"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "title": "aiREST Overview",
+  "uid": "airest-overview",
+  "version": 1
+}

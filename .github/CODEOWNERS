@@ -1,0 +1,18 @@
+# aiREST code ownership
+
+# The repository owner reviews all changes by default.
+* @gustaveherbst
+
+# Specification and governance require owner review.
+/SCHEMA.md @gustaveherbst
+/GOVERNANCE.md @gustaveherbst
+/SECURITY.md @gustaveherbst
+/CONTRIBUTORS.md @gustaveherbst
+/LICENSE @gustaveherbst
+
+# Runtime code
+/src/ @gustaveherbst
+
+# Examples and documentation
+/examples/ @gustaveherbst
+/docs/ @gustaveherbst
