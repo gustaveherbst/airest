@@ -61,7 +61,9 @@ jobs:
             strip -S "dist/${{ matrix.artifact_name }}/airest" 2>/dev/null || true
           fi
           tar -czf "dist/${{ matrix.artifact_name }}.tar.gz" -C "dist/${{ matrix.artifact_name }}" airest
-          sha256sum "dist/${{ matrix.artifact_name }}.tar.gz" > "dist/${{ matrix.artifact_name }}.tar.gz.sha256"
+          archive="dist/${{ matrix.artifact_name }}.tar.gz"
+          hash="$(openssl dgst -sha256 "$archive" | awk '{print $2}')"
+          printf '%s  %s\n' "$hash" "$(basename "$archive")" > "${archive}.sha256"
 
       - name: Smoke test packaged binary
         shell: bash
